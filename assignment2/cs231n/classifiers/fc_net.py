@@ -254,6 +254,10 @@ class FullyConnectedNet(object):
         out_relu1, cache_relu1=relu_forward(out_aff1)
         out={}
         cache={}
+        if self.use_dropout:
+            out_drop1, cache_drop1=dropout_forward(out_relu1, self.dropout_param)      
+            out['out_drop1']=out_drop1
+            cache['cache_drop1']=cache_drop1
         loss, grads= 0.0, {}
         out['out_aff1']=out_aff1
         cache['cache_aff1']=cache_aff1
@@ -261,7 +265,6 @@ class FullyConnectedNet(object):
         cache['cache_relu1']=cache_relu1
         loss+=0.5*self.reg*np.sum(self.params['W1'] **2)
         for i in range(1,self.num_layers-1): 
-                   
             out_aff,cache_aff=affine_forward(out['out_relu'+str(i)],self.params['W'+str(i+1)], self.params['b'+str(i+1)])
             out['out_aff'+str(i+1)]=out_aff
             cache['cache_aff'+str(i+1)]=cache_aff
@@ -269,9 +272,15 @@ class FullyConnectedNet(object):
             out_relu,cache_relu=relu_forward(out_aff)
             out['out_relu'+str(i+1)]=out_relu
             cache['cache_relu'+str(i+1)]=cache_relu
+            if self.use_dropout:
+                out_drop,cache_drop=dropout_forward(out_relu,cache['cache_drop'+str(i)][0])
+                out['out_drop'+str(i+1)]=out_drop
+                cache['cache_drop'+str(i+1)]=cache_drop
             loss+=0.5*self.reg*np.sum(self.params['W'+str(i+1)] **2)
-
-        scores,cache_aff=affine_forward(out['out_relu'+str(self.num_layers-1)], self.params['W'+str(self.num_layers)], self.params['b'+str(self.num_layers)])
+        if self.use_dropout:
+            scores, cache_aff=affine_forward(out['out_drop'+str(self.num_layers-1)], self.params['W'+str(self.num_layers)], self.params['b'+str(self.num_layers)])
+        else:
+            scores,cache_aff=affine_forward(out['out_relu'+str(self.num_layers-1)], self.params['W'+str(self.num_layers)], self.params['b'+str(self.num_layers)])
         loss_nonreg,dx=softmax_loss(scores, y)
         loss+=loss_nonreg
         loss+=0.5*self.reg*np.sum(self.params['W'+str(self.num_layers)] ** 2)
@@ -300,7 +309,11 @@ class FullyConnectedNet(object):
         grads['W'+str(self.num_layers)]=self.reg*(self.params['W'+str(self.num_layers)])+dW
         grads['b'+str(self.num_layers)]=db
         for i in range(self.num_layers-1, 0, -1):
-            dx2=relu_backward(dx, cache['cache_relu'+str(i)])
+            if self.use_dropout:
+                dx_drop=dropout_backward(dx, cache['cache_drop'+str(i)])
+                dx2=relu_backward(dx_drop, cache['cache_relu'+str(i)])
+            else:
+                dx2=relu_backward(dx, cache['cache_relu'+str(i)])
             dx, dW1, db1=affine_backward(dx2, cache['cache_aff'+str(i)])
             grads['W'+str(i)]=dW1+self.reg*self.params['W'+str(i)]
             grads['b'+str(i)]=db1
