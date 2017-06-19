@@ -250,10 +250,20 @@ class FullyConnectedNet(object):
         # self.bn_params[1] to the forward pass for the second batch normalization #
         # layer, etc.                                                              #
         ############################################################################
-        out_aff1, cache_aff1=affine_forward(X, self.params['W1'], self.params['b1'])
-        out_relu1, cache_relu1=relu_forward(out_aff1)
         out={}
         cache={}
+
+        out_aff1, cache_aff1=affine_forward(X, self.params['W1'], self.params['b1'])
+        if self.use_batchnorm:
+            gamma=np.ones(out_aff1.shape[1])
+            cache['gamma1']=gamma
+            cache['beta1']=np.ones(out_aff1.shape[1])
+            out_batch1, cache_batch1=batchnorm_forward(out_aff1, cache['gamma1'], cache['beta1'], self.bn_params[0])
+            out_relu1, cache_relu1=relu_forward(out_batch1)
+            out['out_batch1']=out_batch1
+            cache['cache_batch1']=cache_batch1
+        else:
+            out_relu1, cache_relu1=relu_forward(out_aff1)
         if self.use_dropout:
             out_drop1, cache_drop1=dropout_forward(out_relu1, self.dropout_param)      
             out['out_drop1']=out_drop1
@@ -264,12 +274,25 @@ class FullyConnectedNet(object):
         out['out_relu1']=out_relu1
         cache['cache_relu1']=cache_relu1
         loss+=0.5*self.reg*np.sum(self.params['W1'] **2)
-        for i in range(1,self.num_layers-1): 
-            out_aff,cache_aff=affine_forward(out['out_relu'+str(i)],self.params['W'+str(i+1)], self.params['b'+str(i+1)])
+        for i in range(1,self.num_layers-1):
+            if (self.use_dropout and i!=1):
+                out_aff, cache_aff=affine_forward(out['out_drop'+str(i)], self.params['W'+str(i+1)], self.params['b'+str(i+1)])
+            else:
+                out_aff,cache_aff=affine_forward(out['out_relu'+str(i)],self.params['W'+str(i+1)], self.params['b'+str(i+1)])
             out['out_aff'+str(i+1)]=out_aff
             cache['cache_aff'+str(i+1)]=cache_aff
-  
-            out_relu,cache_relu=relu_forward(out_aff)
+ 
+            if self.use_batchnorm:
+                gamma=np.ones(out_aff.shape[1])
+                beta=np.ones(out_aff.shape[1])
+                cache['gamma'+str(i+1)]=gamma
+                cache['beta'+str(i+1)]=beta
+                out_batch, cache_batch=batchnorm_forward(out_aff, gamma, beta, self.bn_params[i])
+                out['out_batch'+str(i+1)]=out_batch
+                cache['cache_batch'+str(i+1)]=cache_batch
+                out_relu, cache_relu=relu_forward(out_batch)
+            else:
+                out_relu, cache_relu=relu_forward(out_aff)
             out['out_relu'+str(i+1)]=out_relu
             cache['cache_relu'+str(i+1)]=cache_relu
             if self.use_dropout:
@@ -314,7 +337,11 @@ class FullyConnectedNet(object):
                 dx2=relu_backward(dx_drop, cache['cache_relu'+str(i)])
             else:
                 dx2=relu_backward(dx, cache['cache_relu'+str(i)])
-            dx, dW1, db1=affine_backward(dx2, cache['cache_aff'+str(i)])
+            if self.use_batchnorm:
+                dx_batch, dgamma, dbeta=batchnorm_backward(dx2, cache['cache_batch'+str(i)])
+                dx, dW1, db1=affine_backward(dx_batch, cache['cache_aff'+str(i)])
+            else:
+                dx, dW1, db1=affine_backward(dx2, cache['cache_aff'+str(i)])
             grads['W'+str(i)]=dW1+self.reg*self.params['W'+str(i)]
             grads['b'+str(i)]=db1
         

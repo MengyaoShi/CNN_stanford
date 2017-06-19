@@ -65,10 +65,9 @@ class ThreeLayerConvNet(object):
         # hidden affine layer, and keys 'W3' and 'b3' for the weights and biases   #
         # of the output affine layer.                                              #
         ############################################################################
-        self.params['W1']=np.random.normal(0, weight_scale, F*C*HH*WW).reshape(F,C,HH,WW) # W has F C H W
-        print(self.params['W1'].shape) 
-        self.params['W2']=np.random.normal(0, weight_scale, F*H3*W3*hidden_dim).reshape(F*H3*W3,hidden_dim)
-        self.params['W3']=np.random.normal(0,weight_scale, hidden_dim*num_classes).reshape(hidden_dim,num_classes)
+        self.params['W1']=np.random.normal(0, weight_scale, int(F*C*HH*WW)).reshape(F,C,HH,WW) # W has F C H W
+        self.params['W2']=np.random.normal(0, weight_scale, int(F*H3*W3*hidden_dim)).reshape(int(F*H3*W3),hidden_dim)
+        self.params['W3']=np.random.normal(0,weight_scale, int(hidden_dim*num_classes)).reshape(hidden_dim,num_classes)
         self.params['b1']=np.zeros(F)
         self.params['b2']=np.zeros(hidden_dim)
         self.params['b3']=np.zeros(num_classes)
@@ -91,8 +90,6 @@ class ThreeLayerConvNet(object):
         W3, b3 = self.params['W3'], self.params['b3']
 
         # pass conv_param to the forward pass for the convolutional layer
-        print(len(self.params))
-        print(W1.shape)
         filter_size = W1.shape[2]
         conv_param = {'stride': 1, 'pad': (filter_size - 1) // 2}
 

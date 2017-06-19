@@ -180,7 +180,23 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # variance, storing your result in the running_mean and running_var   #
         # variables.                                                          #
         #######################################################################
-        pass
+        cache={}
+        sample_mean=np.sum(x, axis=0)/N # 1 by D
+        running_mean=momentum*running_mean+(1-momentum)*sample_mean
+        sample_var=np.sum((x-sample_mean) ** 2, axis=0)/N
+        running_var=momentum*running_var+(1-momentum)*sample_var
+        x_hat=(x-sample_mean)/np.sqrt(sample_var+eps)
+        x_mu=x-sample_mean
+        out=gamma*x_hat+beta
+        bn_param['running_mean']=running_mean
+        bn_param['running_var']=running_var
+        cache['x_hat']=x_hat
+        cache['gamma']=gamma
+        cache['x_mu']=x_mu
+        cache['var']=sample_var
+        cache['sqrtvar']=np.sqrt(sample_var+eps)
+        cache['ivar']=1./np.sqrt(sample_var+eps)
+        cache['eps']=eps
         #######################################################################
         #                           END OF YOUR CODE                          #
         #######################################################################
@@ -191,7 +207,10 @@ def batchnorm_forward(x, gamma, beta, bn_param):
         # then scale and shift the normalized data using gamma and beta.      #
         # Store the result in the out variable.                               #
         #######################################################################
-        pass
+        running_mean=bn_param['running_mean']
+        running_var=bn_param['running_var']
+        x_hat=(x-running_mean)/np.sqrt(running_var+eps)
+        out=gamma*x_hat+beta
         #######################################################################
         #                          END OF YOUR CODE                           #
         #######################################################################
@@ -223,11 +242,37 @@ def batchnorm_backward(dout, cache):
     - dbeta: Gradient with respect to shift parameter beta, of shape (D,)
     """
     dx, dgamma, dbeta = None, None, None
+    xhat=cache['x_hat']
+    gamma=cache['gamma']
+    xmu=cache['x_mu']
+    var=cache['var']
+    sqrtvar=cache['sqrtvar']
+    ivar=cache['ivar']
+    eps=cache['eps']
+    N,D=dout.shape
     ###########################################################################
     # TODO: Implement the backward pass for batch normalization. Store the    #
     # results in the dx, dgamma, and dbeta variables.                         #
     ###########################################################################
-    pass
+    dbeta=np.sum(dout, axis=0)
+    dgamma=np.sum(dout*xhat, axis=0)
+    dxhat=dout*gamma
+    divar=np.sum(dxhat*xmu, axis=0)
+    dsqrtvar=divar*-1./(sqrtvar ** 2)
+    dvar=0.5*1./np.sqrt(var+eps)*dsqrtvar
+    dxmu1=dxhat*ivar
+
+    dsqrtvar=-1./(sqrtvar ** 2)*divar
+    dvar=0.5*1./np.sqrt(var+eps)*dsqrtvar
+    dsq=1./N*np.ones((N,D))*dvar
+    dxmu2=2*xmu*dsq
+    dx1=(dxmu2+dxmu1)
+    dmu=-1 *np.sum(dxmu1+dxmu2, axis=0)
+    dx2=1./N*np.ones((N,D))*dmu
+    dx=dx1+dx2
+
+   
+    #dx=dout*gamma*((np.ones((N,D))-dmean_dx)/(np.sqrt(x_mu ** 2 +eps))+x_mu*(-1*((x_mu ** 2+eps) ** (-3/2)))*2*(x_mu)*(np.ones((N,D))-dmean_dx))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -369,7 +414,7 @@ def conv_forward_naive(x, w, b, conv_param):
     [F,C, HH, WW]=w.shape
     pad=conv_param['pad']
     stride=conv_param['stride']
-    out=np.zeros((N,F,  1 + (H + 2 * pad - HH)/stride, 1 + (W + 2 * pad - WW) / stride))
+    out=np.zeros((N,F,  1 + (H + 2 * pad - HH)//stride, 1 + (W + 2 * pad - WW) // stride))
     ###########################################################################
     # TODO: Implement the convolutional forward pass.                         #
     # Hint: you can use the function np.pad for padding.                      #
@@ -385,7 +430,7 @@ def conv_forward_naive(x, w, b, conv_param):
             for i in range(0, (H+2*pad-HH )+stride, stride):
                 for j in range(0, (W+2*pad-WW)+stride, stride):
                     if stride!=0:
-                        out[n,f,i/stride,j/stride]=np.sum(w[f,:]* x_pad[n,:,i:(i+HH),j:(j+WW)])
+                        out[n,f,i//stride,j//stride]=np.sum(w[f,:]* x_pad[n,:,i:(i+HH),j:(j+WW)])
     for f in range(0,F):
         out[:,f,:,:]+=b[f] 
     ###########################################################################
@@ -552,7 +597,19 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     # version of batch normalization defined above. Your implementation should#
     # be very short; ours is less than five lines.                            #
     ###########################################################################
-    pass
+    if mode == 'train':
+        N,C,H,W=x.shape
+        x=x.reshape(N,-1)
+        mean=np.sum(x, axis=0)/N
+        var=np.sum((x-mean) ** 2, axis=0)/N
+        running_mean=running_mean*momentum + (1-momentum)*mean 
+        running_var=running_var*momentum+(1-momentum)*var
+        xhat=(x-mean/np.sqrt(var+bn_param['eps'])).reshape(N,C,H,W)
+        out=gamma.reshape(1,C, 1,1)*xhat+beta.reshape(1,C,1,1)
+        bn_param['running_mean']=running_mean
+    elif mode == 'test':
+
+
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
