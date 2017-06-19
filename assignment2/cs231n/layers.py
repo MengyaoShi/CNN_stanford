@@ -597,19 +597,10 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     # version of batch normalization defined above. Your implementation should#
     # be very short; ours is less than five lines.                            #
     ###########################################################################
-    if mode == 'train':
-        N,C,H,W=x.shape
-        x=x.reshape(N,-1)
-        mean=np.sum(x, axis=0)/N
-        var=np.sum((x-mean) ** 2, axis=0)/N
-        running_mean=running_mean*momentum + (1-momentum)*mean 
-        running_var=running_var*momentum+(1-momentum)*var
-        xhat=(x-mean/np.sqrt(var+bn_param['eps'])).reshape(N,C,H,W)
-        out=gamma.reshape(1,C, 1,1)*xhat+beta.reshape(1,C,1,1)
-        bn_param['running_mean']=running_mean
-    elif mode == 'test':
-
-
+    N,C,H,W=x.shape
+    x=x.transpose(0,2,3,1).reshape(N*H*W,C)
+    out,cache=batchnorm_forward(x, gamma, beta, bn_param)
+    out=out.reshape(N,H,W,C).transpose(0,3,1,2)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -639,7 +630,10 @@ def spatial_batchnorm_backward(dout, cache):
     # version of batch normalization defined above. Your implementation should#
     # be very short; ours is less than five lines.                            #
     ###########################################################################
-    pass
+    N,C,H,W=dout.shape
+    dout=dout.transpose(0,2,3,1).reshape(N*H*W,C)
+    dx, dgamma, dbeta=batchnorm_backward(dout, cache)
+    dx.reshape(N,H,W,C).transpose(0,3,1,2)
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
