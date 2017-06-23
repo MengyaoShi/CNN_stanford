@@ -139,14 +139,21 @@ class CaptioningRNN(object):
         ############################################################################
         out_aff=features.dot(W_proj)+ b_proj
         out_word, cache_word=word_embedding_forward(captions_in, W_embed)
-        h_rnn,cache_rnn=rnn_forward(out_word, out_aff, Wx, Wh, b) 
+        if self.cell_type=='rnn':
+            h_rnn,cache_rnn=rnn_forward(out_word, out_aff, Wx, Wh, b) 
+        else:
+            h_rnn, cache_rnn=lstm_forward(out_word, out_aff, Wx, Wh, b)
+            
         out_aff1, cache_aff1=temporal_affine_forward(h_rnn, W_vocab, b_vocab)
         loss, dx=temporal_softmax_loss(out_aff1, captions_out, mask, verbose=False) 
         
         dx_aff, dw, db= temporal_affine_backward(dx, cache_aff1) 
         grads['W_vocab']=dw
         grads['b_vocab']=db
-        dx_rnn, dh0, dWx, dWh, db=rnn_backward(dx_aff, cache_rnn)
+        if self.cell_type=='rnn':
+            dx_rnn, dh0, dWx, dWh, db=rnn_backward(dx_aff, cache_rnn)
+        else:
+            dx_rnn, dh0, dWx, dWh, db=lstm_backward(dx_aff, cache_rnn)
         grads['Wx']=dWx
         grads['Wh']=dWh
         grads['b']=db
@@ -197,6 +204,9 @@ class CaptioningRNN(object):
         Wx, Wh, b = self.params['Wx'], self.params['Wh'], self.params['b']
         W_vocab, b_vocab = self.params['W_vocab'], self.params['b_vocab']
 
+        T=max_length
+        print(T)
+        print(features.shape)
         ###########################################################################
         # TODO: Implement test-time sampling for the model. You will need to      #
         # initialize the hidden state of the RNN by applying the learned affine   #
@@ -218,7 +228,24 @@ class CaptioningRNN(object):
         # functions; you'll need to call rnn_step_forward or lstm_step_forward in #
         # a loop.                                                                 #
         ###########################################################################
-        pass
+        for t in range(T):
+            if t==0:
+                h0=features.dot(W_proj)+ b_proj
+                prev_h=h0
+                print(h0.shape)
+                prev_c=np.zeros(h0.shape)
+
+                x=np.array([W_embed[self._start,]*N])
+                print(x.shape)
+            if self.cell_type=='rnn':   
+                h_rnn, cache_rnn=rnn_step_forward(x, prev_h, Wx, Wh, b)
+            else:
+                h_rnn, c_rnn, cache_rnn=lstm_step_forward(x, prev_h, prev_c, Wx, Wh, b)
+            scores=h_rnn.dot(W_vocab)+b_vocab
+            captions[:,t]=np.argmax(scores, axis=1)
+            x=W_embed[captions[:,t]]
+            prev_h=h_rnn
+            prev_c=c_rnn 
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
